@@ -1,6 +1,7 @@
 const path = require('path')
 const fs = require('fs')
 const express = require('express')
+const {Client} = require('pg')
 const app = express()
 
 let router = express.Router()
@@ -14,9 +15,30 @@ let db = [
   { id: '4', title: 'hello4', body: 'balbalbcal' },
 ]
 
+function conn() {
+  const client = new Client({
+    connectionString: "postgresql://postgres:postgres@localhost:5432/postgres"
+  })
+  return client.connect()
+  .then(() => client)
+}
+
 router.route('/posts')
+  .all((req, res, next) => {
+    console.log(new Date())
+    return conn()
+    .then((client) => {
+      req.db = client
+      next()
+    })
+  })
   .get((req, res) => {
-    res.send(db)
+    req.db.query("SELECT id, title, body FROM public.posts")
+    .then(data => {res.send(data.rows)})
+    .catch(e => {
+      console.error(e)
+      res.status(500).end()
+    })
   })
   .post((req, res) => {
     db.push(req.body)
@@ -43,7 +65,7 @@ router.route('/posts/:id')
           return e
         }
       })
-      res.status(204)
+      res.status(202)
       res.end()
     }
     else {
@@ -53,7 +75,7 @@ router.route('/posts/:id')
   .delete((req, res) => {
     const ret = db.find((e) => e.id === req.params.id)
     if (ret) {
-      db = db.map((e) => {
+      db = db.filter((e) => {
         if (e.id === req.params.id) {
           return req.body
         }
@@ -78,7 +100,7 @@ app.use(router)
 //     console.log(path.join(__dirname, 'static', 'index.html'))
 //     // const content = fs.readFileSync(path.join(__dirname, 'static', 'index.html'), 'utf-8')
 //     // res.send(content)
-// })
+// }) curl -v -XPUT http://localhost:3000/posts  -H 'Content-Type: application/json'  -d '{ "id": "3", "title": "hello343", "body": "hello1 world body blablabla"}'
 
 
 app.listen(3000)
